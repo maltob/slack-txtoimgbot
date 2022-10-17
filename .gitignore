@@ -1,0 +1,6 @@
+sd1-4-fp16
+stable-diffussion-v1-4
+venv
+.env
+files/*
+test.py
