@@ -13,8 +13,18 @@ from torch import torch
 
 load_dotenv()
 
-
+#Load in config
 approved_delete_users = os.environ.get("SLACK_ALLOWED_DELETE").split(",")
+img_height= 512
+img_width= 512
+try:
+    t_env_height = int(os.environ.get("SD_IMG_HEIGHT"))
+    t_env_width = int(os.environ.get("SD_IMG_WIDTH"))
+    img_width = t_env_width
+    img_height = t_env_height
+except:
+    print("Error loading the height and width from variables")
+
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
@@ -38,7 +48,7 @@ def event_test(event, say,client):
     oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me 45 seconds or so to make it.")
     try:
         
-        image = pipe(txt, height=512,width=512).images[0]
+        image = pipe(txt, height=img_height,width=img_width).images[0]
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
         file_name =f"files/uf_{user}_{fp}_{datetime.timestamp(datetime.now())}.png"
         image.save(file_name)
