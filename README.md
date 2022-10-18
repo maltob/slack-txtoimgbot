@@ -1,6 +1,7 @@
 # SD - Bot
 This bot allows for you to have access to [stable diffusion](https://huggingface.co/blog/stable_diffusion#:~:text=Stable%20Diffusion%20%F0%9F%8E%A8...using%20%F0%9F%A7%A8%20Diffusers%20Stable%20Diffusion%20is,images%20from%20a%20subset%20of%20the%20LAION-5B%20database.) at your fingertips!
 
+
 ## Installation
 1. Clone this repository to a folder with at least 5 GB free
 ```
@@ -43,7 +44,6 @@ notepad .env
 python bot.py
 ```
 
-
 ## .env config options
 **SD_IMG_WIDTH**  and **SD_IMG_HEIGHT**
 
@@ -55,9 +55,12 @@ _Set to fp16 for lower precision to save VRAM on cards with less VRAM such as a 
 
 **SD_MODEL_PATH**
 
-_Relative path to the downloaded stable diffusion model. There should be a model_index.json inside the folder this points to_ 
+_Relative path to the downloaded stable diffusion model. There should be a model_index.json inside the folder_ 
 
 
 **SD_MODEL_AUTH_TOKEN**
 
 _Authentication token to access the model from hugging-face. See [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) to generate one_
+
+**SD_BENCHMARK**
+_Set to false to not run a generation benchmark when running the bot. It will default to saying give 45 seconds for image to be generated_
