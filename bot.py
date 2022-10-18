@@ -20,8 +20,8 @@ img_height= 512
 img_width= 512
 model_path="CompVis/stable-diffusion-v1-4"
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+
+logging.basicConfig(filename='app.log', encoding='utf-8', level=logging.DEBUG)
 
 
 try:
@@ -135,4 +135,5 @@ def delete_old_files():
 # Start your app
 if __name__ == "__main__":
     #delete_old_files()
+    logging.info("Starting app")
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
