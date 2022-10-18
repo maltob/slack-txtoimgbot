@@ -1,6 +1,7 @@
 import os
 import logging
 from datetime import datetime
+from pyexpat import model
 # Use the package we installed
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -17,26 +18,52 @@ load_dotenv()
 approved_delete_users = os.environ.get("SLACK_ALLOWED_DELETE").split(",")
 img_height= 512
 img_width= 512
+model_path="CompVis/stable-diffusion-v1-4"
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+
+
 try:
-    t_env_height = int(os.environ.get("SD_IMG_HEIGHT"))
-    t_env_width = int(os.environ.get("SD_IMG_WIDTH"))
-    img_width = t_env_width
-    img_height = t_env_height
+    if os.environ.get("SD_IMG_HEIGHT") and len(os.environ.get("SD_IMG_HEIGHT")) >0 :
+        t_env_height = int(os.environ.get("SD_IMG_HEIGHT"))
+        t_env_width = int(os.environ.get("SD_IMG_WIDTH"))
+        img_width = t_env_width
+        img_height = t_env_height
+        logging.debug(f"Loaded height {img_height} and width {img_width} from environment")
 except:
+    logging.warning(f"Failed to load height and width from environment. Falling back to defaults.")
     print("Error loading the height and width from variables")
 
+
+if os.environ.get("SD_MODEL_PATH") and len(os.environ.get("SD_MODEL_PATH")) > 0:
+    model_path = os.environ.get("SD_MODEL_PATH")
+    logging.debug(f"Set model path to {model_path}")
+
+pipe = None
+if os.environ.get("SD_PRECISION") and len(os.environ.get("SD_PRECISION"))>0 and os.environ.get("SD_PRECISION").lower() == "fp16":
+    logging.debug(f"Using fp16 precision")
+    if model_path.startswith(".") :
+        pipe = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, revision="fp16")
+    else:
+        pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"), torch_dtype=torch.float16, revision="fp16")
+else:
+    if model_path.startswith(".") :
+        pipe = StableDiffusionPipeline.from_pretrained(model_path)
+    else:
+        pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"))
+
+if torch.cuda.is_available() :
+    logging.debug(f"Using cuda")
+    pipe = pipe.to("cuda")
+
+pipe.enable_attention_slicing()
 
 app = App(
     token=os.environ.get("SLACK_BOT_TOKEN"),
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 
-logger = logging.getLogger(__name__)
-
-#pipe = StableDiffusionPipeline.from_pretrained("./sd1-4-fp16", torch_dtype=torch.float16, revision="fp16")
-pipe = StableDiffusionPipeline.from_pretrained("./stable-diffusion-v1-4")
-pipe = pipe.to("cuda")
-pipe.enable_attention_slicing()
 
 
 @app.event("app_mention")
@@ -58,6 +85,7 @@ def event_test(event, say,client):
             initial_comment=f"<@{user}> here is your image for \"{str_txt}\"",
             file=file_name,
         )
+        logger.info(f"Sent image {file_name} for {str_txt} as requested by {user}")
         #print(result)
         client.chat_delete(token=os.environ.get("SLACK_BOT_TOKEN"),
             channel=oMsg["channel"],
@@ -74,7 +102,10 @@ def event_test(event, say,client):
 def handle_reaction_added_events(body, logger):
     if body["event"]["reaction"] == 'x' and body["event"]["user"] in approved_delete_users:
         item = body["event"]["item"]
+        ts = item["ts"]
+        user = body["event"]["user"]
         #print(item)
+        logging.info(f"Searching for images to delete at time {ts} due to reaction by {user}")
         delete_bot_file(channel=item["channel"],ts=item["ts"])
 
 def ack_shortcut(ack):
@@ -87,7 +118,7 @@ def delete_bot_file(channel,ts):
     for file in files["files"]:
         user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
         if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            print("Deleting "+file["name"])
+            logging.info("Deleting "+file["name"]+" at user request")
             app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
         
 def delete_old_files():
@@ -98,7 +129,7 @@ def delete_old_files():
         user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
         #print(file["name"])
         if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            print(file["name"])
+            logging.info("File Cleanup - deleting "+file["name"])
             #app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
 
 # Start your app

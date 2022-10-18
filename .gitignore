@@ -4,3 +4,5 @@ venv
 .env
 files/*
 test.py
+app.log
+app.log
