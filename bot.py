@@ -1,5 +1,6 @@
 import os
 import logging
+import sched
 from time import monotonic_ns
 from datetime import datetime
 from pyexpat import model
@@ -12,7 +13,7 @@ from slack_sdk.errors import SlackApiError
 
 from dotenv import load_dotenv
 
-from diffusers import StableDiffusionPipeline,LMSDiscreteScheduler
+from diffusers import StableDiffusionPipeline, DDIMScheduler, LMSDiscreteScheduler, PNDMScheduler, KarrasVeScheduler
 from torch import torch
 
 load_dotenv()
@@ -28,6 +29,9 @@ img_height= 512
 img_width= 512
 model_path="CompVis/stable-diffusion-v1-4"
 generation_time = 45
+guidance_scale = 7.5
+num_inference_steps = 50
+negative_prompt =""
 
 #setup logger
 logger = logging.getLogger(__name__)
@@ -58,8 +62,40 @@ if os.environ.get("SD_MODEL_PATH") and len(os.environ.get("SD_MODEL_PATH")) > 0:
     model_path = os.environ.get("SD_MODEL_PATH")
     logger.debug(f"Set model path to {model_path}")
 
+if os.environ.get("SD_NEGATIVE_PROMPT") and len(os.environ.get("SD_NEGATIVE_PROMPT")) > 0:
+    negative_prompt = os.environ.get("SD_NEGATIVE_PROMPT")
+    logger.debug(f"Set negative prompt to {negative_prompt}")
+
+
+if os.environ.get("SD_ITERATIONS") and len(os.environ.get("SD_ITERATIONS")) > 0:
+    try:
+        num_inference_steps = int(os.environ.get("SD_ITERATIONS"))
+        logger.debug(f"Set number of inference steps to {num_inference_steps}")
+    except:
+        logger.debug(f"Failed to parse number of inference steps")
+
+if os.environ.get("SD_GUIDANCE_SCALE") and len(os.environ.get("SD_GUIDANCE_SCALE")) > 0:
+    try:
+        guidance_scale = float(os.environ.get("SD_GUIDANCE_SCALE"))
+        logger.debug(f"Set guidance scale to {guidance_scale}")
+    except:
+        logger.debug(f"Failed to parse guidance scale")
+
 #Build the StableDiffusionPipeline
 pipe = None
+scheduler = DDIMScheduler()
+
+if os.environ.get("SD_SCHEDULER") and len(os.environ.get("SD_SCHEDULER")) > 2:
+    if os.environ.get("SD_SCHEDULER").upper() == "LMS":
+        scheduler = LMSDiscreteScheduler()
+        logger.debug(f"Using LMS Scheduler")
+    if os.environ.get("SD_SCHEDULER").upper() == "PNDM":
+        scheduler = PNDMScheduler()
+        logger.debug(f"Using PNDM Scheduler")
+    if os.environ.get("SD_SCHEDULER").upper() == "KERRASVE":
+        scheduler = KarrasVeScheduler()
+        logger.debug(f"Using KerrasVe Scheduler")
+
 if os.environ.get("SD_PRECISION") and len(os.environ.get("SD_PRECISION"))>0 and os.environ.get("SD_PRECISION").lower() == "fp16":
     logger.debug(f"Using fp16 precision")
     if model_path.startswith(".") :
@@ -100,7 +136,7 @@ def event_test(event, say,client):
 
         #Generate an image and upload it to slack, then delete the info message
         generation_lock.acquire()
-        image = pipe(txt, height=img_height,width=img_width).images[0]
+        image = pipe(txt, height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=negative_prompt,num_inference_steps=num_inference_steps).images[0]
         generation_lock.release()
         sd_running_jobs.decrement()
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
@@ -165,7 +201,7 @@ def delete_old_files():
 if os.environ.get("SD_BENCHMARK") and os.environ.get("SD_BENCHMARK").lower()=="true":
     logger.info("Running benchmark")
     start_ns = monotonic_ns()
-    pipe("squid", height=img_height,width=img_width)
+    pipe("squid", height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=negative_prompt,num_inference_steps=num_inference_steps,seed=42)
     end_ns = monotonic_ns()
     generation_time = int((end_ns-start_ns)/1_000_000_000) + 5
     logger.info(f"Completed will report {generation_time} seconds of gen time")

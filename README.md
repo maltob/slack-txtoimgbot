@@ -65,3 +65,19 @@ _Authentication token to access the model from hugging-face. See [https://huggin
 **SD_BENCHMARK**
 
 _Set to false to not run a generation benchmark when running the bot. It will default to saying give 45 seconds for image to be generated_
+
+**SD_GUIDANCE_SCALE**
+
+_Defaults to 7.5; set higher to have less variance in images/more strongly correlated images_
+
+**SD_ITERATIONS**
+
+_Defaults to 50; set higher for higher quality images with slower generation_
+
+**SD_NEGATIVE_PROMPT**
+
+_Set to words you want to avoid such as low-res_
+
+**SD_SCHEDULER**
+
+_Change the scheduler. Defaults to DDIM. Valid options are **LMS**, **PNDM**, and **KARRASVE**._
