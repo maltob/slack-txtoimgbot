@@ -20,29 +20,39 @@ img_height= 512
 img_width= 512
 model_path="CompVis/stable-diffusion-v1-4"
 
+#setup logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logging_file_handler = logging.FileHandler('app.log')
+logging_file_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s (%(levelname)s) %(message)s')
+logging_file_handler.setFormatter(formatter)
+console_log_handler = logging.StreamHandler()
+console_log_handler.setLevel(logging.DEBUG)
+logger.addHandler(logging_file_handler)
+logger.addHandler(console_log_handler)
 
-logging.basicConfig(filename='app.log', encoding='utf-8', level=logging.DEBUG)
-
-
+#Environment config
 try:
     if os.environ.get("SD_IMG_HEIGHT") and len(os.environ.get("SD_IMG_HEIGHT")) >0 :
         t_env_height = int(os.environ.get("SD_IMG_HEIGHT"))
         t_env_width = int(os.environ.get("SD_IMG_WIDTH"))
         img_width = t_env_width
         img_height = t_env_height
-        logging.debug(f"Loaded height {img_height} and width {img_width} from environment")
+        logger.debug(f"Loaded height {img_height} and width {img_width} from environment")
 except:
-    logging.warning(f"Failed to load height and width from environment. Falling back to defaults.")
+    logger.warning(f"Failed to load height and width from environment. Falling back to defaults.")
     print("Error loading the height and width from variables")
 
 
 if os.environ.get("SD_MODEL_PATH") and len(os.environ.get("SD_MODEL_PATH")) > 0:
     model_path = os.environ.get("SD_MODEL_PATH")
-    logging.debug(f"Set model path to {model_path}")
+    logger.debug(f"Set model path to {model_path}")
 
+#Build the StableDiffusionPipeline
 pipe = None
 if os.environ.get("SD_PRECISION") and len(os.environ.get("SD_PRECISION"))>0 and os.environ.get("SD_PRECISION").lower() == "fp16":
-    logging.debug(f"Using fp16 precision")
+    logger.debug(f"Using fp16 precision")
     if model_path.startswith(".") :
         pipe = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, revision="fp16")
     else:
@@ -54,7 +64,7 @@ else:
         pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"))
 
 if torch.cuda.is_available() :
-    logging.debug(f"Using cuda")
+    logger.debug(f"Using cuda")
     pipe = pipe.to("cuda")
 
 pipe.enable_attention_slicing()
@@ -74,7 +84,7 @@ def event_test(event, say,client):
     channel = event["channel"]
     oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me 45 seconds or so to make it.")
     try:
-        
+        #Generate an image and upload it to slack, then delete the info message
         image = pipe(txt, height=img_height,width=img_width).images[0]
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
         file_name =f"files/uf_{user}_{fp}_{datetime.timestamp(datetime.now())}.png"
@@ -98,29 +108,31 @@ def event_test(event, say,client):
             text="Ran into an issue uploading your file. Sorry.")
     #print(oMsg)
 
+#reactions are used by some users to delete a file that was uploaded
 @app.event("reaction_added")
-def handle_reaction_added_events(body, logger):
+def handle_reaction_added_events(body):
     if body["event"]["reaction"] == 'x' and body["event"]["user"] in approved_delete_users:
         item = body["event"]["item"]
         ts = item["ts"]
         user = body["event"]["user"]
         #print(item)
-        logging.info(f"Searching for images to delete at time {ts} due to reaction by {user}")
+        logger.info(f"Searching for images to delete at time {ts} due to reaction by {user}")
         delete_bot_file(channel=item["channel"],ts=item["ts"])
 
 def ack_shortcut(ack):
     ack()
 
-
+#Used to cleanup a file uploaded in a channel at timestamp when requested
 def delete_bot_file(channel,ts):
     files = app.client.files_list(token=os.environ.get("SLACK_BOT_TOKEN"),channel=channel,ts_from=(int(float(ts))-1),ts_to=(int(float(ts)))+1)
     myprof =app.client.users_profile_get()
     for file in files["files"]:
         user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
         if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            logging.info("Deleting "+file["name"]+" at user request")
+            logger.info("Deleting "+file["name"]+" at user request")
             app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
-        
+
+#Used to clean up all files       
 def delete_old_files():
     myprof =app.client.users_profile_get()
     files = app.client.files_list(token=os.environ.get("SLACK_BOT_TOKEN"))
@@ -129,11 +141,11 @@ def delete_old_files():
         user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
         #print(file["name"])
         if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            logging.info("File Cleanup - deleting "+file["name"])
+            logger.info("File Cleanup - deleting "+file["name"])
             #app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
 
 # Start your app
 if __name__ == "__main__":
     #delete_old_files()
-    logging.info("Starting app")
+    logger.info("Starting app")
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
