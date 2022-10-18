@@ -3,6 +3,8 @@ import logging
 from time import monotonic_ns
 from datetime import datetime
 from pyexpat import model
+from threading import Lock
+from tsCounter import tsCounter
 # Use the package we installed
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
@@ -14,6 +16,11 @@ from diffusers import StableDiffusionPipeline,LMSDiscreteScheduler
 from torch import torch
 
 load_dotenv()
+
+#locks
+generation_lock = Lock()
+#Todo change to a locking counter
+sd_running_jobs = tsCounter()
 
 #Load in config
 approved_delete_users = os.environ.get("SLACK_ALLOWED_DELETE").split(",")
@@ -84,10 +91,18 @@ def event_test(event, say,client):
     user = event["user"]
     str_txt = txt[(txt.find(" "))+1:]
     channel = event["channel"]
-    oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me {generation_time} seconds or so to make it.")
+    # Get estimated time to generate the image
+    sd_running_jobs.increment()
+    time_to_generate = generation_time * (sd_running_jobs.counterValue)
+    oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me {time_to_generate} seconds or so to make it.")
+    logger.info(f"{str_txt} requested by {user}")
     try:
+
         #Generate an image and upload it to slack, then delete the info message
+        generation_lock.acquire()
         image = pipe(txt, height=img_height,width=img_width).images[0]
+        generation_lock.release()
+        sd_running_jobs.decrement()
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
         file_name =f"files/uf_{user}_{fp}_{datetime.timestamp(datetime.now())}.png"
         image.save(file_name)

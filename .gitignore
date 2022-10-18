@@ -5,3 +5,4 @@ venv
 files/*
 test.py
 app.log
+__pycache__
