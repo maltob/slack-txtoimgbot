@@ -81,3 +81,7 @@ _Set to words you want to avoid such as low-res_
 **SD_SCHEDULER**
 
 _Change the scheduler. Defaults to DDIM. Valid options are **LMS**, **PNDM**, and **KARRASVE**._
+
+**SD_NO_CUDA**
+
+_Set to true to force CPU based inference. This will take tens of minutes per image._

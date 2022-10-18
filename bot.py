@@ -14,7 +14,7 @@ from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 
 from diffusers import StableDiffusionPipeline, DDIMScheduler, LMSDiscreteScheduler, PNDMScheduler, KarrasVeScheduler
-from torch import torch
+from torch import torch, autocast
 
 load_dotenv()
 
@@ -32,6 +32,7 @@ generation_time = 45
 guidance_scale = 7.5
 num_inference_steps = 50
 negative_prompt =""
+infer_on_device="cpu"
 
 #setup logger
 logger = logging.getLogger(__name__)
@@ -96,21 +97,28 @@ if os.environ.get("SD_SCHEDULER") and len(os.environ.get("SD_SCHEDULER")) > 2:
         scheduler = KarrasVeScheduler()
         logger.debug(f"Using KerrasVe Scheduler")
 
+
+
 if os.environ.get("SD_PRECISION") and len(os.environ.get("SD_PRECISION"))>0 and os.environ.get("SD_PRECISION").lower() == "fp16":
     logger.debug(f"Using fp16 precision")
     if model_path.startswith(".") :
-        pipe = StableDiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16, revision="fp16")
+        pipe = StableDiffusionPipeline.from_pretrained(model_path,  revision="fp16")
     else:
-        pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"), torch_dtype=torch.float16, revision="fp16")
+
+        pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"),  revision="fp16")
 else:
     if model_path.startswith(".") :
         pipe = StableDiffusionPipeline.from_pretrained(model_path)
     else:
         pipe = StableDiffusionPipeline.from_pretrained(model_path, use_auth_token=os.environ.get("SD_MODEL_AUTH_TOKEN"))
 
-if torch.cuda.is_available() :
+if torch.cuda.is_available() and (os.environ.get("SD_NO_CUDA")==None or os.environ.get("SD_NO_CUDA").lower()!="true"):
     logger.debug(f"Using cuda")
     pipe = pipe.to("cuda")
+    infer_on_device = "cuda"
+else:
+    logger.debug(f"Using cpu")
+    pipe = pipe.to("cpu")
 
 pipe.enable_attention_slicing()
 
