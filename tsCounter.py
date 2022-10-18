@@ -3,7 +3,7 @@ class tsCounter:
     def __init__(self) -> None:
         self.lock = Lock()
         self.counterValue = 0
-    def getValue() -> int:
+    def getValue(self) -> int:
         return self.counterValue
     def increment(self):
         try:
