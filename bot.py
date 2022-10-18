@@ -1,5 +1,6 @@
 import os
 import logging
+from time import monotonic_ns
 from datetime import datetime
 from pyexpat import model
 # Use the package we installed
@@ -19,6 +20,7 @@ approved_delete_users = os.environ.get("SLACK_ALLOWED_DELETE").split(",")
 img_height= 512
 img_width= 512
 model_path="CompVis/stable-diffusion-v1-4"
+generation_time = 45
 
 #setup logger
 logger = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ def event_test(event, say,client):
     user = event["user"]
     str_txt = txt[(txt.find(" "))+1:]
     channel = event["channel"]
-    oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me 45 seconds or so to make it.")
+    oMsg = say(f"<@{event['user']}> your photo for \"{str_txt}\" is being created! Give me {generation_time} seconds or so to make it.")
     try:
         #Generate an image and upload it to slack, then delete the info message
         image = pipe(txt, height=img_height,width=img_width).images[0]
@@ -143,6 +145,15 @@ def delete_old_files():
         if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
             logger.info("File Cleanup - deleting "+file["name"])
             #app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
+
+
+if os.environ.get("SD_BENCHMARK") and os.environ.get("SD_BENCHMARK").lower()=="true":
+    logger.info("Running benchmark")
+    start_ns = monotonic_ns()
+    pipe("squid", height=img_height,width=img_width)
+    end_ns = monotonic_ns()
+    generation_time = int((end_ns-start_ns)/1_000_000_000) + 5
+    logger.info(f"Completed will report {generation_time} seconds of gen time")
 
 # Start your app
 if __name__ == "__main__":
