@@ -63,4 +63,5 @@ _Relative path to the downloaded stable diffusion model. There should be a model
 _Authentication token to access the model from hugging-face. See [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) to generate one_
 
 **SD_BENCHMARK**
+
 _Set to false to not run a generation benchmark when running the bot. It will default to saying give 45 seconds for image to be generated_
