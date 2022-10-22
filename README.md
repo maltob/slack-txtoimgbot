@@ -2,6 +2,20 @@
 This bot allows for you to have access to [stable diffusion](https://huggingface.co/blog/stable_diffusion#:~:text=Stable%20Diffusion%20%F0%9F%8E%A8...using%20%F0%9F%A7%A8%20Diffusers%20Stable%20Diffusion%20is,images%20from%20a%20subset%20of%20the%20LAION-5B%20database.) at your fingertips!
 
 
+## Use
+
+1. @ the bot with the text you would like to generate
+2. It will send a photo to you shortly after
+
+### Advanced use
+1. You can send negative prompts to filter out items you would like to exclude by using -= or -- at the end of your prompt like below
+
+##### -= Additive negative prompt
+**soup -= chicken, turkey, tomato** would inform stable diffusion to avoid generating soups with chicken, turkey or tomato. This will still include any default negative prompts from the .env file.
+
+##### -- Exclusive negative prompt
+**soup -- chicken, turkey, tomato** would inform stable diffusion to avoid generating soups with chicken, turkey or tomato. This will override any default negative prompts from the .env file.
+
 ## Installation
 1. Clone this repository to a folder with at least 5 GB free
 ```
