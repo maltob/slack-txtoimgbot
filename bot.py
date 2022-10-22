@@ -10,6 +10,7 @@ from tsCounter import tsCounter
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from slack_sdk.errors import SlackApiError
+from bot_slack_handler import delete_bot_file, delete_old_files
 
 from dotenv import load_dotenv
 
@@ -122,10 +123,24 @@ app = App(
 
 
 @app.event("app_mention")
-def event_test(event, say,client):
+def app_mention(event, say,client):
     txt = event["text"]
     user = event["user"]
     str_txt = txt[(txt.find(" "))+1:]
+    neg_txt = negative_prompt
+    try :
+        indx_neg_prompt = str_txt.index("--")
+        neg_txt = str_txt[indx_neg_prompt+2:]
+        str_txt = str_txt[:indx_neg_prompt]
+        logger.debug(f"Detected negative prompt of {neg_txt} ")
+    except:
+        try :
+            indx_neg_prompt = str_txt.index("-=")
+            neg_txt = f"{negative_prompt},{str_txt[indx_neg_prompt+2:]}"
+            str_txt = str_txt[:indx_neg_prompt]
+            logger.debug(f"Detected negative prompt of {neg_txt} ")
+        except:
+            logger.debug(f"{str_txt} has no negative prompt, using default of {neg_txt}")
     channel = event["channel"]
     # Get estimated time to generate the image
     sd_running_jobs.increment()
@@ -136,7 +151,7 @@ def event_test(event, say,client):
 
         #Generate an image and upload it to slack, then delete the info message
         generation_lock.acquire()
-        image = pipe(txt, height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=negative_prompt,num_inference_steps=num_inference_steps).images[0]
+        image = pipe(txt, height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=neg_txt,num_inference_steps=num_inference_steps).images[0]
         generation_lock.release()
         sd_running_jobs.decrement()
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
@@ -170,32 +185,8 @@ def handle_reaction_added_events(body):
         user = body["event"]["user"]
         #print(item)
         logger.info(f"Searching for images to delete at time {ts} due to reaction by {user}")
-        delete_bot_file(channel=item["channel"],ts=item["ts"])
+        delete_bot_file(app,channel=item["channel"],ts=item["ts"],logger=logger)
 
-def ack_shortcut(ack):
-    ack()
-
-#Used to cleanup a file uploaded in a channel at timestamp when requested
-def delete_bot_file(channel,ts):
-    files = app.client.files_list(token=os.environ.get("SLACK_BOT_TOKEN"),channel=channel,ts_from=(int(float(ts))-1),ts_to=(int(float(ts)))+1)
-    myprof =app.client.users_profile_get()
-    for file in files["files"]:
-        user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
-        if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            logger.info("Deleting "+file["name"]+" at user request")
-            app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
-
-#Used to clean up all files       
-def delete_old_files():
-    myprof =app.client.users_profile_get()
-    files = app.client.files_list(token=os.environ.get("SLACK_BOT_TOKEN"))
-    for file in files["files"]:
-        #print(file)
-        user_prof = app.client.users_profile_get(token=os.environ.get("SLACK_BOT_TOKEN"),user=file["user"])
-        #print(file["name"])
-        if file["name"].find("uf_") == 0 and "bot_id" in user_prof["profile"] and user_prof["profile"]["bot_id"] == myprof["profile"]["bot_id"]:
-            logger.info("File Cleanup - deleting "+file["name"])
-            #app.client.files_delete(token=os.environ.get("SLACK_BOT_TOKEN"),file=file["id"])
 
 
 if os.environ.get("SD_BENCHMARK") and os.environ.get("SD_BENCHMARK").lower()=="true":
@@ -208,6 +199,6 @@ if os.environ.get("SD_BENCHMARK") and os.environ.get("SD_BENCHMARK").lower()=="t
 
 # Start your app
 if __name__ == "__main__":
-    #delete_old_files()
+    #delete_old_files(app,logger)
     logger.info("Starting app")
     SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"]).start()
