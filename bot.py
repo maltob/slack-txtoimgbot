@@ -87,8 +87,10 @@ def app_mention(event, say,client):
 
         #Generate an image and upload it to slack, then delete the info message
         generation_lock.acquire()
-        image = pipe(str_txt, height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=neg_txt,num_inference_steps=num_inference_steps).images[0]
-        generation_lock.release()
+        try:
+            image = pipe(str_txt, height=img_height,width=img_width,guidance_scale=guidance_scale,negative_prompt=neg_txt,num_inference_steps=num_inference_steps).images[0]
+        finally:
+            generation_lock.release()
         sd_running_jobs.decrement()
         fp = str_txt.replace(",","_").replace("/","_").replace("\\","_").replace(":","_").replace(".","_")
         file_name =f"files/uf_{user}_{fp}_{datetime.timestamp(datetime.now())}.png"
